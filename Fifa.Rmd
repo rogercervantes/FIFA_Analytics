@@ -1,8 +1,8 @@
 ---
 title: "FIFA Analytics"
-author: 'Autors:  
- * Rodrigo Rico  
- * Roger Cervantes'
+author:
+- Rodrigo Rico
+- Roger Cervantes
 output:
   html_document:
     highlight: default
@@ -10,8 +10,8 @@ output:
     theme: cosmo
     toc: yes
     toc_depth: 2
-    #includes:
-      #in_header: C:/UOC/UOC-header.html
+    includes:
+      in_header: UOC-header.html
 ---
 
 ```{r setup, include=FALSE}
@@ -84,23 +84,27 @@ my.summary <- function(x){
 ```{r LecFic}
 
 # Leemos los ficheros
-players_15 <- read.csv("Data/players_15.csv", sep=",", header=TRUE)
-players_16 <- read.csv("Data/players_16.csv", sep=",", header=TRUE)
-players_17 <- read.csv("Data/players_17.csv", sep=",", header=TRUE)
-players_18 <- read.csv("Data/players_18.csv", sep=",", header=TRUE)
-players_19 <- read.csv("Data/players_19.csv", sep=",", header=TRUE)
-players_20 <- read.csv("Data/players_20.csv", sep=",", header=TRUE)
+#players_15 <- read.csv("Data/players_15.csv", sep=",", header=TRUE)
+#players_16 <- read.csv("Data/players_16.csv", sep=",", header=TRUE)
+#players_17 <- read.csv("Data/players_17.csv", sep=",", header=TRUE)
+#players_18 <- read.csv("Data/players_18.csv", sep=",", header=TRUE)
+#players_19 <- read.csv("Data/players_19.csv", sep=",", header=TRUE)
+players_20 <- read.csv("Data/players_20.csv", sep=",", header=TRUE, encoding = "UTF-8")
 
 # Añadimos el año
-players_15$year = as.integer(2015)
-players_16$year = as.integer(2016)
-players_17$year = as.integer(2017)
-players_18$year = as.integer(2018)
-players_19$year = as.integer(2019)
-players_20$year = as.integer(2020)
+#players_15$year = as.integer(2015)
+#players_16$year = as.integer(2016)
+#players_17$year = as.integer(2017)
+#players_18$year = as.integer(2018)
+#players_19$year = as.integer(2019)
+#players_20$year = as.integer(2020)
 
 # Los juntamos todos
-fifa <- rbind(players_15, players_16, players_17, players_18, players_19, players_20)
+#fifa <- rbind(players_15, players_16, players_17, players_18, players_19, players_20)
+fifa <- players_20
+
+# Leemos los equipos
+teams <- read.csv("Data/Fifa_Teams.csv", sep=";", header=TRUE)
 
 # Limpiamos memoria
 rm(players_15, players_16, players_17, players_18, players_19, players_20)
@@ -111,9 +115,27 @@ my.head(fifa)
 # Analizamos la estructura de las variables
 str(fifa)
 
-
 ```
 
+
+
+
+```{r create_League}
+
+fifa2 <- merge(x=fifa,y=teams,by="club",all.x = TRUE) # 18324 Obs
+
+fifa2 %>%
+  filter(is.na(league)) %>%
+  count(club) %>%
+  my.kable()
+
+fifa2 %>%
+  count(country, league, club) %>%
+  count(country, league) %>%
+  my.kable()
+
+
+```
 
 ## Selección de registros
 
@@ -552,7 +574,7 @@ Las habilidades son las variables que más influencia se espera que tengan en la
 
 En el juego un jugador está representado por 6 habilidades básicas. Que son `pace`,`shooting`, `passing`, `dribbling`, `defending` y `physical`. 
 
-![player overview](player_overview.jpg)
+![player overview](img/player_overview.jpg)
 
 Para hacer un análisis exploratorio más significativo y adaptado a nuestro objetivo, representaremos cada una de estas habilidades sobre cada una de las tres clases de posiciones: defensores (`Defender`), mediocampistas (`Midfielder`) y atacantes (`Forward`):
 
@@ -701,7 +723,7 @@ El valor de mercado depende de la posición (y de otras variables) pero la posic
 
 En resumen, en lugar de realizar la regresión sobre el conjunto total de jugadores y dejar en manos de un algoritmo la selección de las variables predictoras más importantes, aprovechamos que conocemos de antemano las variables más determinantes para cada posición y aplicamos la regresión por separado personalizando más el análisis a cada tipo de jugador.
 
-![fifa pipeline](fifa_pipeline.png)
+![fifa pipeline](img/fifa_pipeline.png)
 
 ## Habilidades extra
 Si observamos el *dataset* podemos ver que estas seis no son las únicas variables que el juego utiliza para caracterizar a cada jugador. Existe una larga lista de variables adicionales, unas 60. Sin embargo, para evitar saturar el problema de regresión, intentaremos reducir esas 60 variables a 5 mediante métodos de reducción de la dimensionalidad como *PCA*.
