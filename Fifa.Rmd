@@ -10,8 +10,8 @@ output:
     theme: cosmo
     toc: yes
     toc_depth: 2
-    includes:
-      in_header: UOC-header.html
+    #includes:
+      #in_header: UOC-header.html
 ---
 
 ```{r setup, include=FALSE}
@@ -369,7 +369,7 @@ Como vemos, tanto el peso como la altura no parecen tener demasiada influencia e
 Para terminar con esta terna de variables, podemos representar la correlación entre ellas y la correlación con el valor de mercado (al ser ésta una variable numérica):
 
 ```{r}
-ggcorr(fifa[c(14,6,8,9)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(fifa[c(13,6,8,9)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
 ```
 
 Como era de esperar por los resultados gráficos obtenidos, la edad, el peso y la altura no son buenos predictores del valor de mercado, por lo tanto no se incluirán en el análisis de la predicción de éste. Algo que se esperaba es la estrecha correlación entre la altura y el peso. La altura y el peso son dos variables que pueden influir en la posición del jugador, como se ha observado en los gráficos, pero al estar tan estrechamente correlacionadas la mejor opción puede ser tomar una sola para el análisis de la posición.
@@ -529,7 +529,7 @@ multiplot(h1, h2, cols = 1)
 Para cuantificar todas estas dependencias, calculamos los coeficientes de correlación entre cada una de las habilidades y el valor de mercado, incluyendo el `overall`:
 
 ```{r}
-ggcorr(fifa[c(14,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(fifa[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
 ```
 
 Vemos la fuerte dependencia entre el `overall` y el valor de mercado. Dados estos resultados, para el estudio del valor de mercado se usaría el `overall` y las variables `pace`, `shooting`, `passing` y `dribbling`. Se excluirían del análisis `defending` y `physic` por presentar una correlación con la variable objetivo menor a 0.2. Por otra parte, hay que tener en cuenta que estamos analizando en el mismo conjunto a los delanteros y a los defensas y mediocentros. ¿Cambiarían estos coeficientes si los representamos por separado para cada posición?
@@ -539,9 +539,9 @@ fifa.def <- fifa %>% filter(player_positions.class == "Defender")
 fifa.mid <- fifa %>% filter(player_positions.class == "Midfielder")
 fifa.for <- fifa %>% filter(player_positions.class == "Forward")
 
-h1 <- ggcorr(fifa.def[c(14,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-h2 <- ggcorr(fifa.mid[c(14,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-h3 <- ggcorr(fifa.for[c(14,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h1 <- ggcorr(fifa.def[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h2 <- ggcorr(fifa.mid[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h3 <- ggcorr(fifa.for[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
 
 multiplot(h1, h2, h3, cols = 2)
 ```
