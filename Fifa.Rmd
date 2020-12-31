@@ -145,8 +145,17 @@ table(fifa$player_positions.first)
 
 # Creamos las variables por zona
 defence <- c("CB", "RB", "LB", "LWB", "RWB", "LCB", "RCB")
+def.central <- c("CB", "LCB", "RCB")
+def.lateral <- c("LB", "RB", "LWB", "RWB")
+
 midfielder <- c("CM", "CDM","CAM","LM","RM", "LAM", "RAM", "LCM", "RCM", "LDM", "RDM")
-forward = c("ST", "LW", "RW", "LF", "RF", "RS","LS", "CF")
+midfielder.centro <- c("CM", "LCM", "RCM")
+midfielder.ofensivo <- c("CAM", "LAM", "RAM")
+midfielder.defensivo <- c("LDM", "RDM", "CDM")
+midfielder.banda <- c("LM", "RM", "LW", "RW")
+
+forward <- c("ST", "LW", "RW", "LF", "RF", "RS","LS", "CF")
+forward.delantero <- c("ST", "LF", "RF", "RS","LS", "CF")
 
 fifa %<>% 
   mutate(player_positions.class = if_else(player_positions.first %in% "GK", "Goal Keeper",
@@ -155,6 +164,18 @@ fifa %<>%
                                   if_else(player_positions.first %in% forward, "Forward", as.character(player_positions.first)))))
          )
 
+fifa %<>% 
+  mutate(player_positions.subclass = if_else(player_positions.first %in% "GK", "POR",
+                                  if_else(player_positions.first %in% def.central, "DFC",
+                                  if_else(player_positions.first %in% def.lateral, "LAT",
+                                  if_else(player_positions.first %in% midfielder.centro, "MC",
+                                  if_else(player_positions.first %in% midfielder.ofensivo, "MCO",
+                                  if_else(player_positions.first %in% midfielder.defensivo, "MCD",
+                                  if_else(player_positions.first %in% midfielder.banda, "BAN",
+                                  if_else(player_positions.first %in% forward.delantero, "D", as.character(player_positions.first)))))))))
+         )
+
+fifa$value_eur.log <- log(fifa$value_eur)
 # Limpiamos la memória
 rm(defence, midfielder,forward)
 
@@ -162,6 +183,12 @@ rm(defence, midfielder,forward)
 table(fifa$player_positions.class)
 
 ```
+
+```{r}
+# Resultado de player_positions.subclass
+table(fifa$player_positions.subclass)
+```
+
 
 # Limpieza
 
@@ -306,8 +333,13 @@ Las variables objetivo de este análisis son:
 Representamos a continuación las distribuciones de ambas magnitudes:
 
 ```{r}
-h1 <- ggplot(fifa, aes(x = value_eur, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
-h2 <- ggplot(fifa, aes(x = player_positions.class, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
+ggplot(fifa, aes(x = value_eur, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
+```
+
+
+```{r}
+h1 <- ggplot(fifa, aes(x = player_positions.class, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
+h2 <- ggplot(fifa, aes(x = player_positions.subclass, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
 
 multiplot(h1, h2, cols=1)
 ```
@@ -385,7 +417,7 @@ Como vemos, tanto el peso como la altura no parecen tener demasiada influencia e
 Para terminar con esta terna de variables, podemos representar la correlación entre ellas y la correlación con el valor de mercado (al ser ésta una variable numérica):
 
 ```{r}
-ggcorr(fifa[c(13,6,8,9)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(fifa[c(110,6,8,9)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
 ```
 
 Como era de esperar por los resultados gráficos obtenidos, la edad, el peso y la altura no son buenos predictores del valor de mercado, por lo tanto no se incluirán en el análisis de la predicción de éste. Algo que se esperaba es la estrecha correlación entre la altura y el peso. La altura y el peso son dos variables que pueden influir en la posición del jugador, como se ha observado en los gráficos, pero al estar tan estrechamente correlacionadas la mejor opción puede ser tomar una sola para el análisis de la posición.
@@ -532,17 +564,17 @@ En la tabla de medias podemos apreciar en forma numérica las diferencias que se
 En cuanto a la dependencia de éstas con el valor de mercado del jugador:
 
 ```{r}
-h1 <- ggplot(fifa, aes(x=pace, y=value_eur)) + geom_point()
-h2 <- ggplot(fifa, aes(x=shooting, y=value_eur)) + geom_point()
-h3 <- ggplot(fifa, aes(x=passing, y=value_eur)) + geom_point()
+h1 <- ggplot(fifa, aes(x=pace, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=shooting, y=value_eur.log)) + geom_point()
+h3 <- ggplot(fifa, aes(x=passing, y=value_eur.log)) + geom_point()
 
 multiplot(h1, h2, h3, cols=1)
 ```
 
 ```{r}
-h1 <- ggplot(fifa, aes(x=dribbling, y=value_eur)) + geom_point()
-h2 <- ggplot(fifa, aes(x=defending, y=value_eur)) + geom_point()
-h3 <- ggplot(fifa, aes(x=physic, y=value_eur)) + geom_point()
+h1 <- ggplot(fifa, aes(x=dribbling, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=defending, y=value_eur.log)) + geom_point()
+h3 <- ggplot(fifa, aes(x=physic, y=value_eur.log)) + geom_point()
 
 multiplot(h1, h2, h3, cols=1)
 ```
@@ -552,8 +584,8 @@ Observamos cierta relación entre cada una de las habilidades y el valor del jug
 Para observar este fenómenos representaremos el `overall rating` y el `potential` en función del valor de mercado:
 
 ```{r}
-h1 <- ggplot(fifa, aes(x=overall, y=value_eur)) + geom_point()
-h2 <- ggplot(fifa, aes(x=potential, y=value_eur)) + geom_point()
+h1 <- ggplot(fifa, aes(x=overall, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=potential, y=value_eur.log)) + geom_point()
 
 multiplot(h1, h2, cols = 1)
 ```
@@ -561,7 +593,7 @@ multiplot(h1, h2, cols = 1)
 Para cuantificar todas estas dependencias, calculamos los coeficientes de correlación entre cada una de las habilidades y el valor de mercado, incluyendo el `overall`:
 
 ```{r}
-ggcorr(fifa[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(fifa[c(110,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
 ```
 
 Vemos la fuerte dependencia entre el `overall` y el valor de mercado. Dados estos resultados, para el estudio del valor de mercado se usaría el `overall` y las variables `pace`, `shooting`, `passing` y `dribbling`. Se excluirían del análisis `defending` y `physic` por presentar una correlación con la variable objetivo menor a 0.2. Por otra parte, hay que tener en cuenta que estamos analizando en el mismo conjunto a los delanteros y a los defensas y mediocentros. ¿Cambiarían estos coeficientes si los representamos por separado para cada posición?
@@ -573,10 +605,10 @@ fifa.def <- fifa %>% filter(player_positions.class == "Defender")
 fifa.mid <- fifa %>% filter(player_positions.class == "Midfielder")
 fifa.for <- fifa %>% filter(player_positions.class == "Forward")
 
-h1 <- ggcorr( fifa.gk[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-h2 <- ggcorr(fifa.def[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-h3 <- ggcorr(fifa.mid[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-h4 <- ggcorr(fifa.for[c(13,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h1 <- ggcorr( fifa.gk[c(110,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h2 <- ggcorr(fifa.def[c(110,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h3 <- ggcorr(fifa.mid[c(110,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h4 <- ggcorr(fifa.for[c(110,11,12,32,33,34,35,36,37)], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
 
 multiplot(h1, h2, h3, h4, cols = 2)
 
@@ -602,7 +634,78 @@ En resumen, en lugar de realizar la regresión sobre el conjunto total de jugado
 ## Habilidades extra
 Si observamos el *dataset* podemos ver que estas seis no son las únicas variables que el juego utiliza para caracterizar a cada jugador. Existe una larga lista de variables adicionales, unas 60. Sin embargo, para evitar saturar el problema de regresión, intentaremos reducir esas 60 variables a 5 mediante métodos de reducción de la dimensionalidad como *PCA*.
 
+```{r}
+# Hacemos un PCA para seleccionar unas pocas variables de entre las 59 habilidades extra
+library(FactoMineR)
+pca.45_104 <- PCA(X = fifa[45:104], scale.unit = FALSE, graph = FALSE)
+fviz_screeplot(pca.45_104, addlabels = TRUE, ylim = c(0, 100))
+```
 
+Observamos como de las 59 variables, hemos encontrado 3 que explican el 85.4% de la varianza. Esas tres componentes no son componentes existentes en el *dataset* sino que cada una es una combinación lineal de todas ellas. El método PCA nos ha permitido pasar de un espacio de 59 dimensiones a uno de 3, y únicamente estamos perdiendo un 14,6% de varianza.
+
+Vamos a extraer la representación de cada instancia del *dataset* en base a esas tres variables:
+
+```{r}
+# Representación de las observaciones con respecto a las dos primeras componentes con la posición.class
+fviz_pca_ind(pca.45_104, geom.ind = "point", 
+             col.ind = fifa$player_positions.class,
+             pch = 16,
+             addEllipses=TRUE, ellipse.level=0.95,
+             axes = c(1, 2), 
+             pointsize = 1.5) 
+```
+
+```{r}
+# Representación de las observaciones con respecto a las dos primeras componentes con el logaritmo del valor
+fviz_pca_ind(pca.45_104, geom.ind = "point", 
+             col.ind = fifa$value_eur.log,
+             palette = "viridis",
+             pch = 16,
+             axes = c(1, 2), 
+             pointsize = 1.5) 
+```
+
+Se observa un cierto gradiente de color que inidica que quizás pueda existir correlación entre estas componentes y el valor (en escala logarítmica).
+
+```{r}
+my.head(pca.45_104$ind$coord[,1:3])
+```
+
+
+```{r}
+# Representación gráfica en 3 dimensiones de las tres primeras componentes junto con la posición.class
+#install.packages("scatterplot3d") # Install
+library("scatterplot3d") # load
+colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3")
+colors <- colors[as.factor(fifa$player_positions.class)]
+scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
+legend("top", legend = levels(as.factor(fifa$player_positions.class)),
+      col = c("brown1", "chartreuse", "magenta", "deepskyblue3"), pch = 16, bg = "transparent", 
+      inset = -0.2, xpd = TRUE, horiz = TRUE)
+```
+
+```{r}
+# Representación de las tres primeras componentes junto con la posición.subclass
+colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3", "gold", "burlywood4", "forestgreen", "cadetblue1")
+colors <- colors[as.factor(fifa$player_positions.subclass)]
+scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
+legend("top", legend = levels(as.factor(fifa$player_positions.subclass)),
+      col = c("brown1", "chartreuse", "magenta", "deepskyblue3", "gold", "burlywood4", "forestgreen", "cadetblue1"), pch = 16, bg = "transparent", 
+      inset = -0.2, xpd = TRUE, horiz = TRUE)
+```
+
+
+Observamos como las cuatro posiciones fundamentales constituyen cada una un *clúster* en el gráfico. Es por ello que se prevee que las tres primeras componentes extraídas del PCA sean buenos clasificadores. Para poder usarlos en los modelos posteriores, vamos a añadirlas al dataset:
+
+```{r}
+fifa$PC1 <- pca.45_104$ind$coord[,1]
+fifa$PC2 <- pca.45_104$ind$coord[,2]
+fifa$PC3 <- pca.45_104$ind$coord[,3]
+```
+
+Ahora se encuentran al final del *dataset*.
+
+# Modelos de regresión
 
 ```{r}
 # Seleccionamos el juego de datos
@@ -621,16 +724,16 @@ fifa.mod.Test <- fifa.mod[test_ind, ]
 
 
 # Defender
-mod_Defender_1 <- lm(value_eur ~ overall	+ potential + defending, data = fifa.mod.Train)
-mod_Defender_2 <- lm(value_eur ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train)
+mod_Defender_1 <- lm(value_eur.log ~ overall	+ potential + defending, data = fifa.mod.Train)
+mod_Defender_2 <- lm(value_eur.log ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train)
 # Midfielder
-mod_Midfielder_1 <- lm(value_eur ~ overall	+ potential + passing	+ dribbling + shooting, data = fifa.mod.Train)
-mod_Midfielder_2 <- lm(value_eur ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train)
-mod_Midfielder_3 <- lm(value_eur ~ overall	+ potential + passing, data = fifa.mod.Train)
+mod_Midfielder_1 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling + shooting, data = fifa.mod.Train)
+mod_Midfielder_2 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train)
+mod_Midfielder_3 <- lm(value_eur.log ~ overall	+ potential + passing, data = fifa.mod.Train)
 # Forward
-mod_Forward_1 <- lm(value_eur ~ overall	+ potential+ shooting + dribbling, data = fifa.mod.Train)
-mod_Forward_2 <- lm(value_eur ~ overall	+ potential+ shooting, data = fifa.mod.Train)
-mod_Forward_3 <- lm(value_eur ~ overall	+ potential+ dribbling, data = fifa.mod.Train)
+mod_Forward_1 <- lm(value_eur.log ~ overall	+ potential+ shooting + dribbling, data = fifa.mod.Train)
+mod_Forward_2 <- lm(value_eur.log ~ overall	+ potential+ shooting, data = fifa.mod.Train)
+mod_Forward_3 <- lm(value_eur.log ~ overall	+ potential+ dribbling, data = fifa.mod.Train)
 
 
 # Tabla con los coeficientes de determinación de cada modelo
