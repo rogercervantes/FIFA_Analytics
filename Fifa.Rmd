@@ -27,9 +27,8 @@ rm(list = ls())
 library(dplyr)
 library(kableExtra)
 library(GGally)
-
+library(grid)
 library(corrplot)
-
 library(stringr)
 library(gridExtra)
 library(ggplot2)
@@ -37,7 +36,6 @@ library(DMwR)
 library(caret)
 library(ResourceSelection)
 library(pROC)
-
 library(magrittr)
 library(maps)
 library(plotly)
@@ -45,7 +43,6 @@ library(DT)
 library(factoextra)
 library(tidyr)
 library(tibble)
-
 library(fitdistrplus)
 library(FactoMineR)
 library(scatterplot3d)
@@ -101,6 +98,12 @@ str(fifa)
 # Leemos los equipos
 teams <- read.csv("Data/Fifa_Teams.csv", sep=";", header=TRUE)
 
+# Hacemos una primera visualización
+my.head(teams)
+
+# Analizamos la estructura de las variables
+str(teams)
+
 # Juntamos los equipos con su liga
 fifa <- merge(x=fifa,y=teams,by="club",all.x = TRUE)
 
@@ -130,25 +133,9 @@ fifa$value_eur.log <- log(fifa$value_eur)
 
 ```
 
-### player_positions first
-TODO: remove?
+### player_positions class
 
-```{r create.player_positions.first}
-
-# Analizamos player_positions
-str(fifa$player_positions)
-my.head(fifa$player_positions,20)
-
-# Nos quedamos solo con la primera opción
-fifa$player_positions.first <- factor(gsub(",","",substr(fifa$player_positions,1,3)))
-
-# Resultado de player_positions.first
-table(fifa$player_positions.first)
-
-```
-
-
-```{r create.player_line_positions}
+```{r create.player_positions.class}
 
 # Creamos las variables por zona
 line_defense <- c("CB", "RB", "LB", "LWB", "RWB", "LCB", "RCB")
@@ -156,11 +143,15 @@ line_midfielder <- c("CM", "CDM","CAM","LM","RM", "LAM", "RAM", "LCM", "RCM", "L
 line_forward <- c("ST", "LW", "RW", "LF", "RF", "RS","LS", "CF")
 line_limpiar <- c("RES", "SUB")
 
+# Cargamos el array de posiciones de cada jugador
 tmp <- fifa$player_positions
 tmp <- str_split(tmp, ', ', simplify = TRUE)
 tmp <- data.frame(tmp)
+# Añadimos la posicion en la que juega en su equipo y en la seleccion
 tmp <- data.frame(tmp, team=fifa$team_position, nation=fifa$nation_position)
 
+# Cambiamos las distintas posiciones, por los grupos
+# Limpiando (RES -> Reservas, SUB -> Suplentes) que no nos sirve
 for (i in seq_along(tmp)) {
   tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% line_defense) "Defender" else x )
   tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% line_midfielder) "Midfielder" else x )
@@ -168,174 +159,43 @@ for (i in seq_along(tmp)) {
   tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% line_limpiar) "" else x )
 }
 
+# Miramos cuantos valores hay de cada
 tmp$line_GoalKeeper <- ifelse(tmp$X1 == "GK", 1, 0) + ifelse(tmp$X2 == "GK", 1, 0) + ifelse(tmp$X3 == "GK", 1, 0)
 tmp$line_Defense <- ifelse(tmp$X1 == "Defender", 1, 0) + ifelse(tmp$X2 == "Defender", 1, 0) + ifelse(tmp$X3 == "Defender", 1, 0)
 tmp$line_Midfielder <- ifelse(tmp$X1 == "Midfielder", 1, 0) + ifelse(tmp$X2 == "Midfielder", 1, 0) + ifelse(tmp$X3 == "Midfielder", 1, 0)
 tmp$line_Forward <- ifelse(tmp$X1 == "Forward", 1, 0) + ifelse(tmp$X2 == "Forward", 1, 0) + ifelse(tmp$X3 == "Forward", 1, 0)
-tmp$line_CLASS_cod <- paste(tmp$line_GoalKeeper, tmp$line_Defense, tmp$line_Midfielder, tmp$line_Forward, sep = "")
+tmp$player_positions.cod <- paste(tmp$line_GoalKeeper, tmp$line_Defense, tmp$line_Midfielder, tmp$line_Forward, sep = "")
 
-
+# Buscamos el valor mas alto entre todas las posiciones
 tmp$max <- pmax(tmp$line_GoalKeeper, tmp$line_Defense, tmp$line_Midfielder, tmp$line_Forward)
+# Miramos cuantas veces aparece ese valor
 tmp$num_max <- ifelse(tmp$line_GoalKeeper == tmp$max, 1, 0) + ifelse(tmp$line_Defense == tmp$max, 1, 0) + ifelse(tmp$line_Midfielder == tmp$max, 1, 0) + ifelse(tmp$line_Forward == tmp$max, 1, 0)
 
 my.head(tmp, 20)
 
-tmp$line_CLASS <- ""
-tmp$line_CLASS <- ifelse(tmp$num_max==1 & tmp$line_GoalKeeper==tmp$max, "GK", tmp$line_CLASS)
-tmp$line_CLASS <- ifelse(tmp$num_max==1 & tmp$line_Defense==tmp$max, "Defender", tmp$line_CLASS)
-tmp$line_CLASS <- ifelse(tmp$num_max==1 & tmp$line_Midfielder==tmp$max, "Midfielder", tmp$line_CLASS)
-tmp$line_CLASS <- ifelse(tmp$num_max==1 & tmp$line_Forward==tmp$max, "Forward", tmp$line_CLASS)
+tmp$player_positions.class <- ""
+tmp$player_positions.class <- ifelse(tmp$num_max==1 & tmp$line_GoalKeeper==tmp$max, "GK", tmp$player_positions.class)
+tmp$player_positions.class <- ifelse(tmp$num_max==1 & tmp$line_Defense==tmp$max, "Defender", tmp$player_positions.class)
+tmp$player_positions.class <- ifelse(tmp$num_max==1 & tmp$line_Midfielder==tmp$max, "Midfielder", tmp$player_positions.class)
+tmp$player_positions.class <- ifelse(tmp$num_max==1 & tmp$line_Forward==tmp$max, "Forward", tmp$player_positions.class)
 
-table(tmp$line_CLASS)
+table(tmp$player_positions.class)
 
-tmp$line_CLASS <- ifelse(tmp$line_CLASS=="", tmp$team, tmp$line_CLASS)
-tmp$line_CLASS <- ifelse(tmp$line_CLASS=="", tmp$nation, tmp$line_CLASS)
-tmp$line_CLASS <- ifelse(tmp$line_CLASS=="", tmp$X1, tmp$line_CLASS)
+# En caso de que no tengamos una posición mas usada que otras, cogemos 
+# La posición en la que juega en su equipo
+# La posición en la que juega en su equipo
+# La primera posición que veiene marcada
+tmp$player_positions.class <- ifelse(tmp$player_positions.class=="", tmp$team, tmp$player_positions.class)
+tmp$player_positions.class <- ifelse(tmp$player_positions.class=="", tmp$nation, tmp$player_positions.class)
+tmp$player_positions.class <- ifelse(tmp$player_positions.class=="", tmp$X1, tmp$player_positions.class)
 
-table(tmp$line_CLASS)
+# Tabla final de posiciones
+table(tmp$player_positions.class)
 
-fifa$line_CLASS_cod <- tmp$line_CLASS_cod
-fifa$line_CLASS <- tmp$line_CLASS
+# Lo pasamos al dataframe original
+fifa$player_positions.cod <- tmp$player_positions.cod
+fifa$player_positions.class <- tmp$player_positions.class
 
-table(fifa$line_CLASS)
-
-
-# 415       1208        737        459       1348 
-# 255       1265        780        459       1408
-# 248       1266        783        459       1411
-
-#fifa$line_CLASS <- pmax(fifa$line_GoalKeeper, fifa$line_Defense, fifa$line_Midfielder, fifa$line_Forward)
-#fifa$line_CLASS <- ifelse(fifa$line_CLASS == fifa$line_GoalKeeper, "GoalKeeper", fifa$line_CLASS)
-#fifa$line_CLASS <- ifelse(fifa$line_CLASS == fifa$line_Defense, "Defender", fifa$line_CLASS)
-#fifa$line_CLASS <- ifelse(fifa$line_CLASS == fifa$line_Midfielder, "Midfielder", fifa$line_CLASS)
-#fifa$line_CLASS <- ifelse(fifa$line_CLASS == fifa$line_Forward, "Forward", fifa$line_CLASS)
-
-```
-
-
-
-```{r create.player_subline_positions}
-
-# Creamos las variables por zona
-subline_BC <- c("CB", "LCB", "RCB")
-subline_BL <- c("LB", "RB", "LWB", "RWB")
-subline_MC <- c("CM", "LCM", "RCM")
-subline_MO <- c("CAM", "LAM", "RAM")
-subline_MD <- c("LDM", "RDM", "CDM")
-subline_ML <- c("LM", "RM", "LW", "RW")
-subline_FO <- c("ST", "LF", "RF", "RS","LS", "CF")
-subline_limpiar <- c("RES", "SUB")
-
-tmp <- fifa$player_positions
-tmp <- str_split(tmp, ', ', simplify = TRUE)
-tmp <- data.frame(tmp, team=fifa$team_position, nation=fifa$nation_position)
-
-for (i in seq_along(tmp)) {
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_BC) "subline_BC" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_BL) "subline_BL" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_MC) "subline_MC" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_MO) "subline_MO" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_MD) "subline_MD" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_ML) "subline_ML" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_FO) "subline_FO" else x )
-  tmp[,i] <- sapply(as.vector(tmp[[i]]), function(x) if(x %in% subline_limpiar) "" else x )
-}
-
-tmp$subline_GK <- ifelse(tmp$X1=="GK", 1, 0) + ifelse(tmp$X2=="GK", 1, 0) + ifelse(tmp$X3=="GK", 1, 0)
-tmp$subline_BC <- ifelse(tmp$X1=="subline_BC",1,0) + ifelse(tmp$X2=="subline_BC",1,0) + ifelse(tmp$X3=="subline_BC",1,0)
-tmp$subline_BL <- ifelse(tmp$X1=="subline_BL",1,0) + ifelse(tmp$X2=="subline_BL",1,0) + ifelse(tmp$X3=="subline_BL",1,0)
-tmp$subline_MC <- ifelse(tmp$X1=="subline_MC",1,0) + ifelse(tmp$X2=="subline_MC",1,0) + ifelse(tmp$X3=="subline_MC",1,0)
-tmp$subline_MO <- ifelse(tmp$X1=="subline_MO",1,0) + ifelse(tmp$X2=="subline_MO",1,0) + ifelse(tmp$X3=="subline_MO",1,0)
-tmp$subline_MD <- ifelse(tmp$X1=="subline_MD",1,0) + ifelse(tmp$X2=="subline_MD",1,0) + ifelse(tmp$X3=="subline_MD",1,0)
-tmp$subline_ML <- ifelse(tmp$X1=="subline_ML",1,0) + ifelse(tmp$X2=="subline_ML",1,0) + ifelse(tmp$X3=="subline_ML",1,0)
-tmp$subline_FO <- ifelse(tmp$X1=="subline_FO",1,0) + ifelse(tmp$X2=="subline_FO",1,0) + ifelse(tmp$X3=="subline_FO",1,0)
-tmp$subline_CLASS_cod <- paste(tmp$subline_GK, tmp$subline_BC, tmp$subline_BL, tmp$subline_MC, tmp$subline_MO, tmp$subline_MD, tmp$subline_ML, tmp$subline_FO, sep = "")
-
-
-tmp$max <- pmax(tmp$subline_GK, tmp$subline_BC, tmp$subline_BL, tmp$subline_MC, tmp$subline_MO, tmp$subline_MD, tmp$subline_ML, tmp$subline_FO)
-tmp$num_max <- ifelse(tmp$subline_GK == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_BC == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_BL == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_MC == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_MO == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_MD == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_ML == tmp$max, 1, 0) + 
-               ifelse(tmp$subline_FO == tmp$max, 1, 0)
-
-my.head(tmp, 20)
-
-tmp$subline_CLASS <- ""
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_GK==tmp$max, "GK", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_BC==tmp$max, "subline_BC", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_BL==tmp$max, "subline_BL", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_MC==tmp$max, "subline_MC", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_MO==tmp$max, "subline_MO", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_MD==tmp$max, "subline_MD", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_ML==tmp$max, "subline_ML", tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$num_max==1 & tmp$subline_FO==tmp$max, "subline_FO", tmp$subline_CLASS)
-
-table(tmp$subline_CLASS)
-
-tmp$subline_CLASS <- ifelse(tmp$subline_CLASS=="", tmp$team, tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$subline_CLASS=="", tmp$nation, tmp$subline_CLASS)
-tmp$subline_CLASS <- ifelse(tmp$subline_CLASS=="", tmp$X1, tmp$subline_CLASS)
-
-table(tmp$subline_CLASS)
-
-fifa$subline_CLASS_cod <- tmp$subline_CLASS_cod
-fifa$subline_CLASS <- tmp$subline_CLASS
-
-table(fifa$subline_CLASS_cod)
-table(fifa$subline_CLASS)
-
-```
-
-### player_positions class
-
-TODO: remove?
-
-```{r create.player_positions.class}
-
-# Creamos las variables por zona
-defense <- c("CB", "RB", "LB", "LWB", "RWB", "LCB", "RCB")
-def.central <- c("CB", "LCB", "RCB")
-def.lateral <- c("LB", "RB", "LWB", "RWB")
-
-midfielder <- c("CM", "CDM","CAM","LM","RM", "LAM", "RAM", "LCM", "RCM", "LDM", "RDM")
-midfielder.centro <- c("CM", "LCM", "RCM")
-midfielder.ofensivo <- c("CAM", "LAM", "RAM")
-midfielder.defensivo <- c("LDM", "RDM", "CDM")
-midfielder.banda <- c("LM", "RM", "LW", "RW")
-
-forward <- c("ST", "LW", "RW", "LF", "RF", "RS","LS", "CF")
-forward.delantero <- c("ST", "LF", "RF", "RS","LS", "CF")
-
-fifa %<>% 
-  mutate(player_positions.class = if_else(player_positions.first %in% "GK", "Goal Keeper",
-                                  if_else(player_positions.first %in% defense, "Defender",
-                                  if_else(player_positions.first %in% midfielder, "Midfielder",
-                                  if_else(player_positions.first %in% forward, "Forward", as.character(player_positions.first)))))
-         )
-
-fifa %<>% 
-  mutate(player_positions.subclass = if_else(player_positions.first %in% "GK", "POR",
-                                  if_else(player_positions.first %in% def.central, "DFC",
-                                  if_else(player_positions.first %in% def.lateral, "LAT",
-                                  if_else(player_positions.first %in% midfielder.centro, "MC",
-                                  if_else(player_positions.first %in% midfielder.ofensivo, "MCO",
-                                  if_else(player_positions.first %in% midfielder.defensivo, "MCD",
-                                  if_else(player_positions.first %in% midfielder.banda, "BAN",
-                                  if_else(player_positions.first %in% forward.delantero, "D", as.character(player_positions.first)))))))))
-         )
-
-
-# Resultado de player_positions.class
-table(fifa$player_positions.class)
-
-```
-```{r}
-# Resultado de player_positions.subclass
-table(fifa$player_positions.subclass)
 ```
 
 
@@ -359,35 +219,16 @@ fifa <- fifa %>% filter(!is.na(value_eur))
 
 ```{r boxplot}
 
-p1<- ggplot(fifa, aes(x=player_positions.class, y=age,       fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("")
+gp1<- ggplot(fifa, aes(x=player_positions.class, y=age,       fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp2<- ggplot(fifa, aes(x=player_positions.class, y=overall,   fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp3<- ggplot(fifa, aes(x=player_positions.class, y=potential, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp4<- ggplot(fifa, aes(x=player_positions.class, y=height_cm, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp5<- ggplot(fifa, aes(x=player_positions.class, y=weight_kg, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp6<- ggplot(fifa, aes(x=player_positions.class, y=value_eur, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
+gp7<- ggplot(fifa, aes(x=player_positions.class, y=wage_eur,  fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
 
-p2<- ggplot(fifa, aes(x=player_positions.class, y=overall,   fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-p3<- ggplot(fifa, aes(x=player_positions.class, y=potential, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-p4<- ggplot(fifa, aes(x=player_positions.class, y=height_cm, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-p5<- ggplot(fifa, aes(x=player_positions.class, y=weight_kg, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-p6<- ggplot(fifa, aes(x=player_positions.class, y=value_eur, fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-p7<- ggplot(fifa, aes(x=player_positions.class, y=wage_eur,  fill=player_positions.class)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-grid.arrange(p1, p2, p3, p4, ncol = 2)
-grid.arrange(p5, p6, p7, ncol = 2)
-
-
-# TODO: Comparar graficos
-p1<- ggplot(fifa, aes(x=line_CLASS, y=age,       fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p2<- ggplot(fifa, aes(x=line_CLASS, y=overall,   fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p3<- ggplot(fifa, aes(x=line_CLASS, y=potential, fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p4<- ggplot(fifa, aes(x=line_CLASS, y=height_cm, fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p5<- ggplot(fifa, aes(x=line_CLASS, y=weight_kg, fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p6<- ggplot(fifa, aes(x=line_CLASS, y=value_eur, fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-p7<- ggplot(fifa, aes(x=line_CLASS, y=wage_eur,  fill=line_CLASS)) + geom_boxplot() + theme(legend.position="none") + xlab("") 
-
-grid.arrange(p1, p2, p3, p4, ncol = 2)
-grid.arrange(p5, p6, p7, ncol = 2)
+grid.arrange(gp1, gp2, gp3, gp4, ncol = 2)
+grid.arrange(gp5, gp6, gp7, ncol = 2)
 
 ```
 
@@ -397,7 +238,6 @@ grid.arrange(p5, p6, p7, ncol = 2)
 Las varibles que albergan las métricas que definen el rendimiento del jugador en el juego están acompañadas por un valor fijo y una cantidad variable que se suma a éste, para representar la evolución del jugador durante algunos modos de juego. Para este análisis nos quedaremos con la parte fija.
 
 ```{r estadisticas}
-# select(Position, LS:RB)
 
 # Pasamos las métricas de rendimiento nuevas a numéricas
 for(i in 45:104) { # Iteramos sobre las métricas que queremos limpiar
@@ -442,7 +282,6 @@ Definimos esta función que se usará para representar varias gráficas en la mi
 # 3 will go all the way across the bottom.
 #
 multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
-  library(grid)
 
   # Make a list from the ... arguments and plotlist
   plots <- c(list(...), plotlist)
@@ -483,7 +322,7 @@ Los datos de partida en el EDA se encuentran en el *dataset* `fifa` resultado de
 
 ```{r}
 # Visualizamos los datos de partida para el EDA
-my.head(fifa)
+my.head(fifa, 10)
 ```
 
 
@@ -503,14 +342,7 @@ ggplot(fifa, aes(x = value_eur, fill = "red")) + geom_density(alpha = 0.6) + the
 
 
 ```{r}
-p1 <- ggplot(fifa, aes(x = player_positions.class, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
-p2 <- ggplot(fifa, aes(x = player_positions.subclass, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
-
-p3 <- ggplot(fifa, aes(x = line_CLASS, fill = line_CLASS)) + geom_bar() + theme(legend.position = "none")
-p4 <- ggplot(fifa, aes(x = subline_CLASS, fill = subline_CLASS)) + geom_bar() + theme(legend.position = "none")
-
-multiplot(p1, p2, p3, p4, cols=1)
-# TODO: comparar graficos
+ggplot(fifa, aes(x = player_positions.class, fill = player_positions.class)) + geom_bar() + theme(legend.position = "none")
 ```
 
 La distribución del valor de mercado sigue una ley de distribución *Gamma* a simple vista.
@@ -530,41 +362,28 @@ Influencia de la posición del jugador en el valor de mercado:
 
 ```{r}
 ggplot(fifa, aes(x = value_eur, colour = player_positions.class)) + geom_density()
-
-ggplot(fifa, aes(x = value_eur, colour = line_CLASS)) + geom_density()
-
-#TODO: Comparar graficos
 ```
 
 Parece existir una ligera influencia de la posición del jugador en valor de mercado. Si observamos la posición de los picos y la altura de la falda derecha de las distribuciones, nos daremos cuenta de que los delanteros tienden a ser más caros que los defensas.
 
 ## Edad, peso y altura
 ```{r}
-p1 <- ggplot(fifa, aes(x = age, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
-p2 <- ggplot(fifa, aes(x = height_cm, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
-p3 <- ggplot(fifa, aes(x = weight_kg, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
+h1 <- ggplot(fifa, aes(x = age, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
+h2 <- ggplot(fifa, aes(x = height_cm, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
+h3 <- ggplot(fifa, aes(x = weight_kg, fill = "red")) + geom_density(alpha = 0.6) + theme(legend.position = "none")
 
-multiplot(p1, p2, p3, cols=1)
+multiplot(h1, h2, h3, cols=1)
 
 ```
 
 Podemos observar si existe dependencia entre estas variables y la posición del jugador:
 
 ```{r}
-p1 <- ggplot(fifa, aes(x = age, colour = player_positions.class)) + geom_density() 
-p2 <- ggplot(fifa, aes(x = height_cm, colour = player_positions.class)) + geom_density() 
-p3 <- ggplot(fifa, aes(x = weight_kg, colour = player_positions.class)) + geom_density() 
+h1 <- ggplot(fifa, aes(x = age, colour = player_positions.class)) + geom_density() 
+h2 <- ggplot(fifa, aes(x = height_cm, colour = player_positions.class)) + geom_density() 
+h3 <- ggplot(fifa, aes(x = weight_kg, colour = player_positions.class)) + geom_density() 
 
-multiplot(p1, p2, p3, cols=1)
-
-
-p1 <- ggplot(fifa, aes(x = age, colour = line_CLASS)) + geom_density() 
-p2 <- ggplot(fifa, aes(x = height_cm, colour = line_CLASS)) + geom_density() 
-p3 <- ggplot(fifa, aes(x = weight_kg, colour = line_CLASS)) + geom_density() 
-
-multiplot(p1, p2, p3, cols=1)
-
-#TODO: Comparar graficos
+multiplot(h1, h2, h3, cols=1)
 
 ```
 
@@ -577,11 +396,11 @@ En general, se observan diferencias entre las distribuciones de porteros, defens
 Ahora vamos a ver la dependencia con la otra variable objetivo: el valor de mercado `value_eur`:
 
 ```{r}
-p1 <- ggplot(fifa, aes(x=age, y=value_eur)) + geom_point()
-p2 <- ggplot(fifa, aes(x=height_cm, y=value_eur)) + geom_point()
-p3 <- ggplot(fifa, aes(x=weight_kg, y=value_eur)) + geom_point()
+h1 <- ggplot(fifa, aes(x=age, y=value_eur)) + geom_point()
+h2 <- ggplot(fifa, aes(x=height_cm, y=value_eur)) + geom_point()
+h3 <- ggplot(fifa, aes(x=weight_kg, y=value_eur)) + geom_point()
 
-multiplot(p1, p2, p3, cols=1)
+multiplot(h1, h2, h3, cols=1)
 
 ```
 
@@ -591,8 +410,8 @@ Para terminar con esta terna de variables, podemos representar la correlación e
 
 ```{r}
 
-ggcorr(fifa[c("value_eur.log", "age", "height_cm", "weight_kg")], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
-
+val_list <- c("value_eur.log", "age", "height_cm", "weight_kg")
+ggcorr(fifa[val_list], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
 
 ```
 
@@ -609,75 +428,23 @@ En el juego un jugador está representado por 6 habilidades básicas. Que son `p
 Para hacer un análisis exploratorio más significativo y adaptado a nuestro objetivo, representaremos cada una de estas habilidades sobre cada una de las tres clases de posiciones: defensores (`Defender`), mediocampistas (`Midfielder`) y atacantes (`Forward`):
 
 ```{r message= FALSE, warning=FALSE}
+library(ggplot2)
 
-p1 <- ggplot(fifa, aes(x = pace, colour = player_positions.class)) + geom_density()
-p2 <- ggplot(fifa, aes(x = shooting, colour = player_positions.class)) + geom_density()
-p3 <- ggplot(fifa, aes(x = passing, colour = player_positions.class)) + geom_density()
+d1 <- ggplot(fifa, aes(x = pace,     colour = player_positions.class)) + geom_density()
+d2 <- ggplot(fifa, aes(x = shooting, colour = player_positions.class)) + geom_density()
+d3 <- ggplot(fifa, aes(x = passing,  colour = player_positions.class)) + geom_density()
+d4 <- ggplot(fifa, aes(x = dribbling, colour = player_positions.class)) + geom_density()
+d5 <- ggplot(fifa, aes(x = defending, colour = player_positions.class)) + geom_density()
+d6 <- ggplot(fifa, aes(x = physic,    colour = player_positions.class)) + geom_density()
 
-multiplot(p1, p2, p3, cols=1)
-
-
-p1 <- ggplot(fifa, aes(x = pace, colour = line_CLASS)) + geom_density()
-p2 <- ggplot(fifa, aes(x = shooting, colour = line_CLASS)) + geom_density()
-p3 <- ggplot(fifa, aes(x = passing, colour = line_CLASS)) + geom_density()
-
-multiplot(p1, p2, p3, cols=1)
-
-#TODO: Revisar
-
-```
-
-```{r}
-p4 <- ggplot(fifa, aes(x = dribbling, colour = player_positions.class)) + geom_density()
-p5 <- ggplot(fifa, aes(x = defending, colour = player_positions.class)) + geom_density()
-p6 <- ggplot(fifa, aes(x = physic, colour = player_positions.class)) + geom_density()
-
-multiplot(p4, p5, p6, cols=1)
-
-p4 <- ggplot(fifa, aes(x = dribbling, colour = line_CLASS)) + geom_density()
-p5 <- ggplot(fifa, aes(x = defending, colour = line_CLASS)) + geom_density()
-p6 <- ggplot(fifa, aes(x = physic, colour = line_CLASS)) + geom_density()
-
-multiplot(p4, p5, p6, cols=1)
-
-#TODO: Revisar
+multiplot(d1, d2, d3, cols=1)
+multiplot(d4, d5, d6, cols=1)
 
 ```
 
 Se puede observar la diferencia en las distribuciones entre cada una de las tres posiciones. A continuación se calcula la media de cada una de las distribuciones anteriores:
 
 ```{r}
-pace <- c(mean(fifa$pace[fifa$player_positions.class == "Defender"]),
-           mean(fifa$pace[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$pace[fifa$player_positions.class == "Forward"]))
-
-shooting <- c(mean(fifa$shooting[fifa$player_positions.class == "Defender"]),
-           mean(fifa$shooting[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$shooting[fifa$player_positions.class == "Forward"]))
-
-passing <- c(mean(fifa$passing[fifa$player_positions.class == "Defender"]),
-           mean(fifa$passing[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$passing[fifa$player_positions.class == "Forward"]))
-
-dribbling <- c(mean(fifa$dribbling[fifa$player_positions.class == "Defender"]),
-           mean(fifa$dribbling[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$dribbling[fifa$player_positions.class == "Forward"]))
-
-defending <- c(mean(fifa$defending[fifa$player_positions.class == "Defender"]),
-           mean(fifa$defending[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$defending[fifa$player_positions.class == "Forward"]))
-
-physic <- c(mean(fifa$physic[fifa$player_positions.class == "Defender"]),
-           mean(fifa$physic[fifa$player_positions.class == "Midfielder"]),
-           mean(fifa$physic[fifa$player_positions.class == "Forward"]))
-
-positions <- c("Defender", "Midfielder", "Forward")
-
-means <- data.frame(positions, pace, shooting, passing, dribbling, defending, physic)
-my.head(means)
-
-
-# TODO: Otra manera de hacerlo
 pace <-      aggregate(fifa$pace~player_positions.class, fifa, mean)
 shooting <-  aggregate(fifa$shooting~player_positions.class, fifa, mean)
 passing <-   aggregate(fifa$passing~player_positions.class, fifa, mean)
@@ -688,44 +455,11 @@ physic <-    aggregate(fifa$physic~player_positions.class, fifa, mean)
 means <- data.frame(pace[1], pace[2], shooting[2], passing[2], dribbling[2], defending[2], physic[2])
 my.head(means)
 
-
-
 ```
 
 Y las desviaciones estándar:
 
 ```{r}
-pace <- c(sd(fifa$pace[fifa$player_positions.class == "Defender"]),
-           sd(fifa$pace[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$pace[fifa$player_positions.class == "Forward"]))
-
-shooting <- c(sd(fifa$shooting[fifa$player_positions.class == "Defender"]),
-           sd(fifa$shooting[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$shooting[fifa$player_positions.class == "Forward"]))
-
-passing <- c(sd(fifa$passing[fifa$player_positions.class == "Defender"]),
-           sd(fifa$passing[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$passing[fifa$player_positions.class == "Forward"]))
-
-dribbling <- c(sd(fifa$dribbling[fifa$player_positions.class == "Defender"]),
-           sd(fifa$dribbling[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$dribbling[fifa$player_positions.class == "Forward"]))
-
-defending <- c(sd(fifa$defending[fifa$player_positions.class == "Defender"]),
-           sd(fifa$defending[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$defending[fifa$player_positions.class == "Forward"]))
-
-physic <- c(sd(fifa$physic[fifa$player_positions.class == "Defender"]),
-           sd(fifa$physic[fifa$player_positions.class == "Midfielder"]),
-           sd(fifa$physic[fifa$player_positions.class == "Forward"]))
-
-positions <- c("Defender", "Midfielder", "Forward")
-
-sdevs <- data.frame(positions, pace, shooting, passing, dribbling, defending, physic)
-my.head(sdevs)
-
-
-# TODO: Otra manera de hacerlo
 pace <-      aggregate(fifa$pace~player_positions.class, fifa, sd)
 shooting <-  aggregate(fifa$shooting~player_positions.class, fifa, sd)
 passing <-   aggregate(fifa$passing~player_positions.class, fifa, sd)
@@ -736,7 +470,6 @@ physic <-    aggregate(fifa$physic~player_positions.class, fifa, sd)
 sdevs <- data.frame(pace[1], pace[2], shooting[2], passing[2], dribbling[2], defending[2], physic[2])
 my.head(sdevs)
 
-
 ```
 
 En la tabla de medias podemos apreciar en forma numérica las diferencias que se visualizaban en las gráficas anteriores. Podemos concluir que las seis habilidades básicas son buenas predictoras de la posición del jugador y por tanto deben estar presentes en el modelo de clasificación.
@@ -744,19 +477,19 @@ En la tabla de medias podemos apreciar en forma numérica las diferencias que se
 En cuanto a la dependencia de éstas con el valor de mercado del jugador:
 
 ```{r}
-p1 <- ggplot(fifa, aes(x=pace, y=value_eur.log)) + geom_point()
-p2 <- ggplot(fifa, aes(x=shooting, y=value_eur.log)) + geom_point()
-p3 <- ggplot(fifa, aes(x=passing, y=value_eur.log)) + geom_point()
+h1 <- ggplot(fifa, aes(x=pace, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=shooting, y=value_eur.log)) + geom_point()
+h3 <- ggplot(fifa, aes(x=passing, y=value_eur.log)) + geom_point()
 
-multiplot(p1, p2, p3, cols=1)
+multiplot(h1, h2, h3, cols=1)
 ```
 
 ```{r}
-p1 <- ggplot(fifa, aes(x=dribbling, y=value_eur.log)) + geom_point()
-p2 <- ggplot(fifa, aes(x=defending, y=value_eur.log)) + geom_point()
-p3 <- ggplot(fifa, aes(x=physic, y=value_eur.log)) + geom_point()
+h1 <- ggplot(fifa, aes(x=dribbling, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=defending, y=value_eur.log)) + geom_point()
+h3 <- ggplot(fifa, aes(x=physic, y=value_eur.log)) + geom_point()
 
-multiplot(p1, p2, p3, cols=1)
+multiplot(h1, h2, h3, cols=1)
 ```
 
 Observamos cierta relación entre cada una de las habilidades y el valor del jugador. Especialmente en las habilidades de atacante, que suelen ser los jugadores más cotizados. Sin embargo la correlación no es todo lo clara que podría esperarse, hay variables donde ni siquiera se observa relación alguna. Esto ocurre porque una habilidad por sí sola no hace a un jugador más caro o barato, si no el conjunto de ellas.
@@ -764,18 +497,18 @@ Observamos cierta relación entre cada una de las habilidades y el valor del jug
 Para observar este fenómenos representaremos el `overall rating` y el `potential` en función del valor de mercado:
 
 ```{r}
-p1 <- ggplot(fifa, aes(x=overall, y=value_eur.log)) + geom_point()
-p2 <- ggplot(fifa, aes(x=potential, y=value_eur.log)) + geom_point()
+h1 <- ggplot(fifa, aes(x=overall, y=value_eur.log)) + geom_point()
+h2 <- ggplot(fifa, aes(x=potential, y=value_eur.log)) + geom_point()
 
-multiplot(p1, p2, cols=1)
+multiplot(h1, h2, cols = 1)
 ```
 
 Para cuantificar todas estas dependencias, calculamos los coeficientes de correlación entre cada una de las habilidades y el valor de mercado, incluyendo el `overall`:
 
 ```{r}
+
 val_list <- c("value_eur.log", "overall", "potential", "pace", "shooting", "passing", "dribbling", "defending", "physic")
 ggcorr(fifa[val_list], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
-
 
 ```
 
@@ -783,37 +516,18 @@ Vemos la fuerte dependencia entre el `overall` y el valor de mercado. Dados esto
 
 ```{r}
 
-fifa.gk  <- fifa %>% filter(player_positions.class == "Goal Keeper")
+#TODO: Goal Keeper
+fifa.gk  <- fifa %>% filter(player_positions.class == "GK")
 fifa.def <- fifa %>% filter(player_positions.class == "Defender")
 fifa.mid <- fifa %>% filter(player_positions.class == "Midfielder")
 fifa.for <- fifa %>% filter(player_positions.class == "Forward")
 
-val_list <- c("value_eur.log", "overall", "potential", "pace", "shooting", "passing", "dribbling", "defending", "physic")
+h1 <- ggcorr( fifa.gk[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h2 <- ggcorr(fifa.def[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h3 <- ggcorr(fifa.mid[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
+h4 <- ggcorr(fifa.for[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
 
-p1 <- ggcorr(fifa.gk[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p2 <- ggcorr(fifa.def[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p3 <- ggcorr(fifa.mid[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p4 <- ggcorr(fifa.for[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-
-multiplot(p1, p2, p3, p4, cols = 2)
-
-
-
-fifa.gk  <- fifa %>% filter(line_CLASS == "GK")
-fifa.def <- fifa %>% filter(line_CLASS == "Defender")
-fifa.mid <- fifa %>% filter(line_CLASS == "Midfielder")
-fifa.for <- fifa %>% filter(line_CLASS == "Forward")
-
-val_list <- c("value_eur.log", "overall", "potential", "pace", "shooting", "passing", "dribbling", "defending", "physic")
-
-p1 <- ggcorr(fifa.gk[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p2 <- ggcorr(fifa.def[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p3 <- ggcorr(fifa.mid[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-p4 <- ggcorr(fifa.for[val_list], label = TRUE, label_size = 3, hjust = 1, layout.exp = 2)
-
-multiplot(p1, p2, p3, p4, cols = 2)
-#TODO: REvisar grafico
-
+multiplot(h1, h2, h3, h4, cols = 2)
 
 ```
 
@@ -836,9 +550,6 @@ Si observamos el *dataset* podemos ver que estas seis no son las únicas variabl
 
 ```{r}
 # Hacemos un PCA para seleccionar unas pocas variables de entre las 59 habilidades extra
-
-# attacking_crossing:rb
-
 pca.45_104 <- PCA(X = fifa[45:104], scale.unit = FALSE, graph = FALSE)
 fviz_screeplot(pca.45_104, addlabels = TRUE, ylim = c(0, 100))
 ```
@@ -855,16 +566,6 @@ fviz_pca_ind(pca.45_104, geom.ind = "point",
              addEllipses=TRUE, ellipse.level=0.95,
              axes = c(1, 2), 
              pointsize = 1.5) 
-
-
-fviz_pca_ind(pca.45_104, geom.ind = "point", 
-             col.ind = fifa$line_CLASS,
-             pch = 16,
-             addEllipses=TRUE, ellipse.level=0.95,
-             axes = c(1, 2), 
-             pointsize = 1.5) 
-
-#TODO: Revisar
 ```
 
 ```{r}
@@ -887,42 +588,14 @@ my.head(pca.45_104$ind$coord[,1:3])
 ```{r}
 # Representación gráfica en 3 dimensiones de las tres primeras componentes junto con la posición.class
 #install.packages("scatterplot3d") # Install
+#library("scatterplot3d") # load
 colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3")
 colors <- colors[as.factor(fifa$player_positions.class)]
 scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
 legend("top", legend = levels(as.factor(fifa$player_positions.class)),
       col = c("brown1", "chartreuse", "magenta", "deepskyblue3"), pch = 16, bg = "transparent", 
       inset = -0.2, xpd = TRUE, horiz = TRUE)
-
-
-colors <- colors[as.factor(fifa$line_CLASS)]
-scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
-legend("top", legend = levels(as.factor(fifa$line_CLASS)),
-      col = c("brown1", "chartreuse", "magenta", "deepskyblue3"), pch = 16, bg = "transparent", 
-      inset = -0.2, xpd = TRUE, horiz = TRUE)
-
-# TODO: Revisar
 ```
-
-```{r}
-# Representación de las tres primeras componentes junto con la posición.subclass
-colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3", "gold", "burlywood4", "forestgreen", "cadetblue1")
-colors <- colors[as.factor(fifa$player_positions.subclass)]
-scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
-legend("top", legend = levels(as.factor(fifa$player_positions.subclass)),
-      col = c("brown1", "chartreuse", "magenta", "deepskyblue3", "gold", "burlywood4", "forestgreen", "cadetblue1"), pch = 16, bg = "transparent", 
-      inset = -0.2, xpd = TRUE, horiz = TRUE)
-
-
-colors <- colors[as.factor(fifa$subline_CLASS)]
-scatterplot3d(pca.45_104$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
-legend("top", legend = levels(as.factor(fifa$subline_CLASS)),
-      col = c("brown1", "chartreuse", "magenta", "deepskyblue3", "gold", "burlywood4", "forestgreen", "cadetblue1"), pch = 16, bg = "transparent", 
-      inset = -0.2, xpd = TRUE, horiz = TRUE)
-
-#TODO: Revisar
-```
-
 
 Observamos como las cuatro posiciones fundamentales constituyen cada una un *clúster* en el gráfico. Es por ello que se prevee que las tres primeras componentes extraídas del PCA sean buenos clasificadores. Para poder usarlos en los modelos posteriores, vamos a añadirlas al dataset:
 
@@ -943,7 +616,7 @@ Ahora se encuentran al final del *dataset*.
 #fifa.mod <- fifa.for
 fifa.mod <- fifa
 
-#fifa.mod$value_eur <- fifa.mod$value_eur / 1000000
+#fifa.mod$value_eur <- fifa.mod$value_eur #/ 1000000
 
 ## set the seed to make your partition reproducible
 set.seed(123)
@@ -951,57 +624,72 @@ test_ind <- sample(seq_len(nrow(fifa.mod)), size = floor(0.25 * nrow(fifa.mod)))
 fifa.mod.Train <- fifa.mod[-test_ind, ]
 fifa.mod.Test <- fifa.mod[test_ind, ]
 
+fifa.mod.Train.def <- fifa.mod.Train %>% filter(player_positions.class == "Defender")
+fifa.mod.Train.mid <- fifa.mod.Train %>% filter(player_positions.class == "Midfielder")
+fifa.mod.Train.for <- fifa.mod.Train %>% filter(player_positions.class == "Forward")
+
+fifa.mod.Test.def <- fifa.mod.Test %>% filter(player_positions.class == "Defender")
+fifa.mod.Test.mid <- fifa.mod.Test %>% filter(player_positions.class == "Midfielder")
+fifa.mod.Test.for <- fifa.mod.Test %>% filter(player_positions.class == "Forward")
+
 
 # Defender
-mod_Defender_1 <- lm(value_eur.log ~ overall	+ potential + defending, data = fifa.mod.Train)
-mod_Defender_2 <- lm(value_eur.log ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train)
+mod_Defender_1 <- lm(value_eur.log ~ overall	+ potential + defending + PC1 + PC2 + PC3, data = fifa.mod.Train.def)
+#mod_Defender_2 <- lm(value_eur.log ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train.def)
 # Midfielder
-mod_Midfielder_1 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling + shooting, data = fifa.mod.Train)
-mod_Midfielder_2 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train)
-mod_Midfielder_3 <- lm(value_eur.log ~ overall	+ potential + passing, data = fifa.mod.Train)
+mod_Midfielder_1 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling + shooting + PC1 + PC2 + PC3, data = fifa.mod.Train.mid)
+#mod_Midfielder_2 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train.mid)
+#mod_Midfielder_3 <- lm(value_eur.log ~ overall	+ potential + passing, data = fifa.mod.Train.mid)
 # Forward
-mod_Forward_1 <- lm(value_eur.log ~ overall	+ potential+ shooting + dribbling, data = fifa.mod.Train)
-mod_Forward_2 <- lm(value_eur.log ~ overall	+ potential+ shooting, data = fifa.mod.Train)
-mod_Forward_3 <- lm(value_eur.log ~ overall	+ potential+ dribbling, data = fifa.mod.Train)
+mod_Forward_1 <- lm(value_eur.log ~ overall	+ potential+ shooting + dribbling + PC1 + PC2 + PC3, data = fifa.mod.Train.for)
+#mod_Forward_2 <- lm(value_eur.log ~ overall	+ potential+ shooting, data = fifa.mod.Train.for)
+#mod_Forward_3 <- lm(value_eur.log ~ overall	+ potential+ dribbling, data = fifa.mod.Train.for)
 
 
 # Tabla con los coeficientes de determinación de cada modelo
-tabla.coeficientes <- matrix(c('mod_Defender_1', summary(mod_Defender_1)$r.squared,sqrt(deviance(mod_Defender_1)/df.residual(mod_Defender_1)),
-                               'mod_Defender_2', summary(mod_Defender_2)$r.squared,sqrt(deviance(mod_Defender_2)/df.residual(mod_Forward_2)),
+tabla.coeficientes <- matrix(c('mod_Defender_1',   summary(mod_Defender_1)$r.squared,sqrt(deviance(mod_Defender_1)/df.residual(mod_Defender_1)),
                                'mod_Midfielder_1', summary(mod_Midfielder_1)$r.squared,sqrt(deviance(mod_Midfielder_1)/df.residual(mod_Midfielder_1)),
-                               'mod_Midfielder_2', summary(mod_Midfielder_2)$r.squared,sqrt(deviance(mod_Midfielder_2)/df.residual(mod_Midfielder_2)),
-                               'mod_Midfielder_3', summary(mod_Midfielder_3)$r.squared,sqrt(deviance(mod_Midfielder_3)/df.residual(mod_Midfielder_3)),
-                               'mod_Forward_1', summary(mod_Forward_1)$r.squared,sqrt(deviance(mod_Forward_1)/df.residual(mod_Forward_1)),
-                               'mod_Forward_2', summary(mod_Forward_2)$r.squared,sqrt(deviance(mod_Forward_2)/df.residual(mod_Forward_2)),
-                               'mod_Forward_3', summary(mod_Forward_3)$r.squared,sqrt(deviance(mod_Forward_3)/df.residual(mod_Forward_2))
-                            ),ncol = 3, byrow = TRUE)
+                               'mod_Forward_1',    summary(mod_Forward_1)$r.squared,sqrt(deviance(mod_Forward_1)/df.residual(mod_Forward_1))),ncol = 3, byrow = TRUE)
 colnames(tabla.coeficientes) <- c("Modelo", "R^2", "Residual standard error")
 tabla.coeficientes
 
 # Creamos las predicciones para los modelos
-pred_Defender_1 <- exp(predict(mod_Defender_1, fifa.mod.Test))
-pred_Defender_2 <- exp(predict(mod_Defender_2, fifa.mod.Test))
+pred_Defender_1 <- predict(mod_Defender_1, fifa.mod.Test)
 pred_Midfielder_1 <- predict(mod_Midfielder_1, fifa.mod.Test)
-pred_Midfielder_2 <- predict(mod_Midfielder_2, fifa.mod.Test)
-pred_Midfielder_3 <- predict(mod_Midfielder_3, fifa.mod.Test)
 pred_Forward_1 <- predict(mod_Forward_1, fifa.mod.Test)
-pred_Forward_2 <- predict(mod_Forward_2, fifa.mod.Test)
-pred_Forward_3 <- predict(mod_Forward_3, fifa.mod.Test)
 
 # Mostramos los resultados
-df <- data.frame(Original=fifa.mod.Test$value_eur,
+df <- data.frame(Pos=fifa.mod.Test$player_positions.class, Original=fifa.mod.Test$value_eur.log,
                  pred_Defender_1=pred_Defender_1,
-                 pred_Defender_2=pred_Defender_2,
                  pred_Midfielder_1=pred_Midfielder_1,
-                 pred_Midfielder_2=pred_Midfielder_2,
-                 pred_Midfielder_3=pred_Midfielder_3,
-                 pred_Forward_1=pred_Forward_1,
-                 pred_Forward_2=pred_Forward_2,
-                 pred_Forward_3=pred_Forward_3)
-my.head(df,30)
+                 pred_Forward_1=pred_Forward_1)
+my.kable(df)
 
 
 ```
+```{r}
+res <- data.frame(df$Original,
+                 df$Original-df$pred_Defender_1,
+                 df$Original-df$pred_Midfielder_1,
+                 df$Original-df$pred_Forward_1)
+colnames(res) <- c("Original", "Residuo Def", "Residuo Mid", "Residuo For")
+my.head(res)
+```
+
+Una cuestión importante acerca de los residuos de la regresión. La idea es deterctar jugadores con un precio inferior al que predice el modelo. La diferencia entre el valor real y el valor predicho es el residuo de la medida. Pero al tener una regresión con la variable a predecir en escala logarítmica hay que deshacerla para poder extraer las conclusiones. Si llamamos $y$ a a variable que queremos predecir, en este caso `value_eur`:
+
+$$ \mbox{residuo}=log(y_{obs})-log(y_{pred})=log(\frac{y_{obs}}{y_{pred}})\Rightarrow e^{\mbox{residuo}}=e^{log(y_{obs})-log(y_{pred})}=e^{log(\frac{y_{obs}}{y_{pred}})}=\frac{y_{obs}}{y_{pred}}\Rightarrow \\ \Rightarrow e^{\mbox{residuo}}=\frac{y_{obs}}{y_{pred}} $$
+
+Por tanto, deebmos calcular la exponencial de los residuos de la regresión. Esa columna será el cociente entre el valor observado y el predicho. Si, por ejemplo, buscamos jugadores cuyo valor de mercado sea un 10% inferior a su valor predicho, debemos buscar los jugadores que cumplan:
+
+$$ \frac{y_{obs}}{y_{pred}}<0.90 \Rightarrow e^{\mbox{residuo}}<0.90 \Rightarrow \mbox{residuo}<log(0.90)=-0.105 $$
+
+Seleccionamos aquellos jugadores que tengan un valor inferior a $-0.105$ en la columna de residuos.
+
+
+
+
+
 
 
 ```{r}
@@ -1031,8 +719,7 @@ pred_mod_overall <- predict(mod_overall, fifa.mod.Test)
 # Mostramos los resultados
 df <- data.frame(Original=fifa.mod.Test$overall,
                  pred_mod_overall=pred_mod_overall)
-my.head(df,20)
+my.head(df)
 
 
 ```
-
