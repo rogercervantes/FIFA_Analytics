@@ -714,7 +714,7 @@ Ahora se encuentran al final del *dataset*.
 #fifa.mod <- fifa.for
 fifa.mod <- fifa
 
-fifa.mod$value_eur <- fifa.mod$value_eur / 1000000
+#fifa.mod$value_eur <- fifa.mod$value_eur #/ 1000000
 
 ## set the seed to make your partition reproducible
 set.seed(123)
@@ -722,61 +722,63 @@ test_ind <- sample(seq_len(nrow(fifa.mod)), size = floor(0.25 * nrow(fifa.mod)))
 fifa.mod.Train <- fifa.mod[-test_ind, ]
 fifa.mod.Test <- fifa.mod[test_ind, ]
 
+fifa.mod.Train.def <- fifa.mod.Train %>% filter(player_positions.class == "Defender")
+fifa.mod.Train.mid <- fifa.mod.Train %>% filter(player_positions.class == "Midfielder")
+fifa.mod.Train.for <- fifa.mod.Train %>% filter(player_positions.class == "Forward")
+
 
 # Defender
-mod_Defender_1 <- lm(value_eur.log ~ overall	+ potential + defending, data = fifa.mod.Train)
-mod_Defender_2 <- lm(value_eur.log ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train)
+mod_Defender_1 <- lm(value_eur.log ~ overall	+ potential + defending + PC1 + PC2 + PC3, data = fifa.mod.Train.def)
+#mod_Defender_2 <- lm(value_eur.log ~ overall	+ potential + defending	+ physic, data = fifa.mod.Train.def)
 # Midfielder
-mod_Midfielder_1 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling + shooting, data = fifa.mod.Train)
-mod_Midfielder_2 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train)
-mod_Midfielder_3 <- lm(value_eur.log ~ overall	+ potential + passing, data = fifa.mod.Train)
+mod_Midfielder_1 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling + shooting + PC1 + PC2 + PC3, data = fifa.mod.Train.mid)
+#mod_Midfielder_2 <- lm(value_eur.log ~ overall	+ potential + passing	+ dribbling, data = fifa.mod.Train.mid)
+#mod_Midfielder_3 <- lm(value_eur.log ~ overall	+ potential + passing, data = fifa.mod.Train.mid)
 # Forward
-mod_Forward_1 <- lm(value_eur.log ~ overall	+ potential+ shooting + dribbling, data = fifa.mod.Train)
-mod_Forward_2 <- lm(value_eur.log ~ overall	+ potential+ shooting, data = fifa.mod.Train)
-mod_Forward_3 <- lm(value_eur.log ~ overall	+ potential+ dribbling, data = fifa.mod.Train)
+mod_Forward_1 <- lm(value_eur.log ~ overall	+ potential+ shooting + dribbling + PC1 + PC2 + PC3, data = fifa.mod.Train.for)
+#mod_Forward_2 <- lm(value_eur.log ~ overall	+ potential+ shooting, data = fifa.mod.Train.for)
+#mod_Forward_3 <- lm(value_eur.log ~ overall	+ potential+ dribbling, data = fifa.mod.Train.for)
 
 
 # Tabla con los coeficientes de determinación de cada modelo
 tabla.coeficientes <- matrix(c('mod_Defender_1', summary(mod_Defender_1)$r.squared,sqrt(deviance(mod_Defender_1)/df.residual(mod_Defender_1)),
-                               'mod_Defender_2', summary(mod_Defender_2)$r.squared,sqrt(deviance(mod_Defender_2)/df.residual(mod_Forward_2)),
                                'mod_Midfielder_1', summary(mod_Midfielder_1)$r.squared,sqrt(deviance(mod_Midfielder_1)/df.residual(mod_Midfielder_1)),
-                               'mod_Midfielder_2', summary(mod_Midfielder_2)$r.squared,sqrt(deviance(mod_Midfielder_2)/df.residual(mod_Midfielder_2)),
-                               'mod_Midfielder_3', summary(mod_Midfielder_3)$r.squared,sqrt(deviance(mod_Midfielder_3)/df.residual(mod_Midfielder_3)),
-                               'mod_Forward_1', summary(mod_Forward_1)$r.squared,sqrt(deviance(mod_Forward_1)/df.residual(mod_Forward_1)),
-                               'mod_Forward_2', summary(mod_Forward_2)$r.squared,sqrt(deviance(mod_Forward_2)/df.residual(mod_Forward_2)),
-                               'mod_Forward_3', summary(mod_Forward_3)$r.squared,sqrt(deviance(mod_Forward_3)/df.residual(mod_Forward_2))
-                            ),ncol = 3, byrow = TRUE)
+                               'mod_Forward_1', summary(mod_Forward_1)$r.squared,sqrt(deviance(mod_Forward_1)/df.residual(mod_Forward_1))),ncol = 3, byrow = TRUE)
 colnames(tabla.coeficientes) <- c("Modelo", "R^2", "Residual standard error")
 tabla.coeficientes
 
 # Creamos las predicciones para los modelos
 pred_Defender_1 <- predict(mod_Defender_1, fifa.mod.Test)
-pred_Defender_2 <- predict(mod_Defender_2, fifa.mod.Test)
 pred_Midfielder_1 <- predict(mod_Midfielder_1, fifa.mod.Test)
-pred_Midfielder_2 <- predict(mod_Midfielder_2, fifa.mod.Test)
-pred_Midfielder_3 <- predict(mod_Midfielder_3, fifa.mod.Test)
 pred_Forward_1 <- predict(mod_Forward_1, fifa.mod.Test)
-pred_Forward_2 <- predict(mod_Forward_2, fifa.mod.Test)
-pred_Forward_3 <- predict(mod_Forward_3, fifa.mod.Test)
 
 # Mostramos los resultados
-df <- data.frame(Original=fifa.mod.Test$value_eur,
+df <- data.frame(Original=fifa.mod.Test$value_eur.log,
                  pred_Defender_1=pred_Defender_1,
-                 pred_Defender_2=pred_Defender_2,
                  pred_Midfielder_1=pred_Midfielder_1,
-                 pred_Midfielder_2=pred_Midfielder_2,
-                 pred_Midfielder_3=pred_Midfielder_3,
-                 pred_Forward_1=pred_Forward_1,
-                 pred_Forward_2=pred_Forward_2,
-                 pred_Forward_3=pred_Forward_3)
-df
+                 pred_Forward_1=pred_Forward_1)
+my.head(df)
 
 
 ```
+```{r}
+res <- data.frame(df$Original,
+                 df$Original-df$pred_Defender_1,
+                 df$Original-df$pred_Midfielder_1,
+                 df$Original-df$pred_Forward_1)
+colnames(res) <- c("Original", "Residuo")
+my.head(res)
+```
 
+Una cuestión importante acerca de los residuos de la regresión. La idea es deterctar jugadores con un precio inferior al que predice el modelo. La diferencia entre el valor real y el valor predicho es el residuo de la medida. Pero al tener una regresión con la variable a predecir en escala logarítmica hay que deshacerla para poder extraer las conclusiones. Si llamamos $y$ a a variable que queremos predecir, en este caso `value_eur`:
 
+$$ \mbox{residuo}=log(y_{obs})-log(y_{pred})=log(\frac{y_{obs}}{y_{pred}})\Rightarrow e^{\mbox{residuo}}=e^{log(y_{obs})-log(y_{pred})}=e^{log(\frac{y_{obs}}{y_{pred}})}=\frac{y_{obs}}{y_{pred}}\Rightarrow \\ \Rightarrow e^{\mbox{residuo}}=\frac{y_{obs}}{y_{pred}} $$
 
+Por tanto, deebmos calcular la exponencial de los residuos de la regresión. Esa columna será el cociente entre el valor observado y el predicho. Si, por ejemplo, buscamos jugadores cuyo valor de mercado sea un 10% inferior a su valor predicho, debemos buscar los jugadores que cumplan:
 
+$$ \frac{y_{obs}}{y_{pred}}<0.90 \Rightarrow e^{\mbox{residuo}}<0.90 \Rightarrow \mbox{residuo}<log(0.90)=-0.105 $$
+
+Seleccionamos aquellos jugadores que tengan un valor inferior a $-0.105$ en la columna de residuos.
 
 ```{r}
 fifa.mod <- fifa
@@ -805,7 +807,7 @@ pred_mod_overall <- predict(mod_overall, fifa.mod.Test)
 # Mostramos los resultados
 df <- data.frame(Original=fifa.mod.Test$overall,
                  pred_mod_overall=pred_mod_overall)
-df
+my.head(df)
 
 
 ```
