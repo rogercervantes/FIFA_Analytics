@@ -737,7 +737,7 @@ accuracy  <- function(x) { sum(diag(x)/(sum(rowSums(x)))) * 100 }
 # Escogemos el Objetivo
 y = factor(fifa$player_positions.class)
 
-# Escojemos una semilla y dividimos en Train y Test
+# Escogemos una semilla y dividimos en Train y Test
 set.seed(123)
 test_ind <- sample(seq_len(nrow(fifa)), size = floor(0.25 * nrow(fifa)))
 
