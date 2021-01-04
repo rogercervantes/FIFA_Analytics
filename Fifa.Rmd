@@ -726,6 +726,7 @@ my.head(df)
 
 # Predicción por posición
 
+
 ## Seleccionamos los objetivos
 
 ```{r}
@@ -751,6 +752,26 @@ y.Test  <- y[test_ind]
 
 ```{r}
 
+X <- fifa[45:104]
+                                 
+ggcorr(X[1:5], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[6:10], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[11:15], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[16:20], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[21:26], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[27:29], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[30:34], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[35:50], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+ggcorr(X[51:60], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+
+
+val_list <- c(5,10,11,12,13,14,15,20,26,29,34,50,60)
+ggcorr(X[val_list], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+
+```{r}
+
 # Se escoge entre 3 opciones para ver en cual tenemos mejor resultado
 
 # Variables de rendimiento (conPCA_3 = FALSE y conPCA_4 = FALSE)
@@ -758,12 +779,16 @@ y.Test  <- y[test_ind]
 # 4 variables PCA          (conPCA_3 = FALSE y conPCA_4 = TRUE )
 
 conPCA_3 = FALSE
-conPCA_4 = FALSE
+conPCA_4 = TRUE
+RESUMEN = FALSE
+
 
 if (conPCA_3 == TRUE){
   X <- data.frame(fifa$PC1, fifa$PC2, fifa$PC3)
 }else if (conPCA_4 == TRUE){
   X <- data.frame(fifa$PC1, fifa$PC2, fifa$PC3, PC4=pca.45_104$ind$coord[,4])
+}else if (RESUMEN == TRUE){
+  X <- as.data.frame(lapply(X[val_list], normalize))
 }else{
   X <- as.data.frame(lapply(fifa[45:104], normalize))
 }
@@ -778,6 +803,8 @@ X.Test  <- X[test_ind, ]
 ```
 
 
+
+
 ## Agrupamos por distintos métodos
 
 ### KNN
@@ -788,7 +815,7 @@ library(class)
 
 # Miramos el mejor valor de K
 i=1                          # declaration to initiate for loop
-k.optm=1                     # declaration to initiate for loop
+k.optm=80                     # declaration to initiate for loop
 for (i in 1:20){ 
     knn.mod <-  knn(train = X.Train, test = X.Test, cl= y.Train, k = i)
     k.optm[i] <- 100 * sum(y.Test == knn.mod)/NROW(y.Test)
