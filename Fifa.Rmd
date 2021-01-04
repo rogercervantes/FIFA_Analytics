@@ -882,3 +882,168 @@ accuracy(tab)
 
 ```
 
+## Clasificador Naive Bayes
+
+El clasificador Naive Bayes presupone que las variables predictoras no están correlacionadas entre sí. La idea es utilizar: la altura, las 6 habilidades fundamentales y 60 habilidades extra (reducidas a 3 mediante PCA) para predecir la posición del jugador. Veamos la correlación entre estas variables:
+
+```{r}
+val_list <- c("pace", "shooting", "passing", "dribbling", "defending", "physic", "PC1", "PC2", "PC3", "height_cm")
+ggcorr(fifa[val_list], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+Nos damos cuenta de que, las variables que provienen del PCA presentan una correlación nula entre ellas. Sin embargo, las que no provienen de PCA no tienen esa característica que buscamos. Nos planteamos, por tanto, realizar un segundo PCA sobre este grupo de variables.
+
+```{r}
+# Hacemos un PCA para seleccionar unas pocas variables de entre las 10 seleccionadas para el clasificador NB
+pca.nb <- PCA(X = fifa[val_list], scale.unit = FALSE, graph = FALSE)
+fviz_screeplot(pca.nb, addlabels = TRUE, ylim = c(0, 100))
+```
+
+Vemos que las tres primeras explican el 98.2% de la varianza. Seleccionamos esas tres componentes y las guardamos en nuestro dataframe:
+
+```{r}
+fifa$NB1 <- pca.nb$ind$coord[,1]
+fifa$NB2 <- pca.nb$ind$coord[,2]
+fifa$NB3 <- pca.nb$ind$coord[,3]
+```
+
+Probamos ahora a ver las correlaciones:
+
+```{r}
+nb_list <- c("NB1", "NB2", "NB3")
+ggcorr(fifa[nb_list], label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+Tenemos, por tanto, tres variables que explican el 98,2% de la varianza de las 10 variables que pretendíamos usar para clasificar los jugadores por posición y además son independientes entre sí, por lo que son susceptibles de usarse en el clasificador Naive Bayes.
+
+```{r}
+# Representación de las observaciones con respecto a las dos primeras componentes con la posición.class
+fviz_pca_ind(pca.nb, geom.ind = "point", 
+             col.ind = fifa$player_positions.class,
+             pch = 16,
+             addEllipses=TRUE, ellipse.level=0.95,
+             axes = c(1, 2), 
+             pointsize = 1.5) 
+```
+
+Observamos un gráfico muy similar al que obtivimos con las tres primeras componentes principales de las 60 habilidades extra. 
+
+```{r}
+# Representación gráfica en 3 dimensiones de las tres primeras componentes junto con la posición.class
+colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3")
+colors <- colors[as.factor(fifa$player_positions.class)]
+scatterplot3d(pca.nb$ind$coord[,1:3], angle = 115, pch = 16, color= colors, box = FALSE)
+legend("top", legend = levels(as.factor(fifa$player_positions.class)),
+      col = c("brown1", "chartreuse", "magenta", "deepskyblue3"), pch = 16, bg = "transparent", 
+      inset = -0.2, xpd = TRUE, horiz = TRUE)
+```
+
+Naive Bayes presupone también que las variables predictoras tienen distribuciones gaussianas dentro de cada clase. Representamos estas distribuciones para comprobarlo:
+
+```{r}
+ggplot(fifa, aes(x = NB1, colour = player_positions.class)) + geom_density(alpha = 0.6)
+```
+
+```{r}
+ggplot(fifa, aes(x = NB2, colour = player_positions.class)) + geom_density(alpha = 0.6)
+```
+
+```{r}
+ggplot(fifa, aes(x = NB3, colour = player_positions.class)) + geom_density(alpha = 0.6)
+```
+
+En algunas ocasiones las distribuciones no son todo lo gaussianas que nos gustaría, lo cual va en detrimento del correcto funcionamiento del modelo Naive Bayes.
+
+```{r}
+# Normalizamos las variables predictoras
+X <- as.data.frame(lapply(fifa[nb_list], normalize))
+
+# Separamos las variables entre Train y Test
+X.Train <- X[-test_ind, ]
+X.Test  <- X[test_ind, ]
+
+# Unimos X e y
+NB.Train <- X.Train
+NB.Train["position"] <- y.Train
+```
+
+Ahora entrenamos el modelo:
+
+```{r}
+#install.packages("e1071")
+library(e1071)
+```
+
+```{r}
+clf.NB = naiveBayes(position ~ NB1 + NB2 + NB3, data = NB.Train)
+print(clf.NB)
+```
+
+```{r}
+clf.NB.predict <- predict(clf.NB, newdata = X.Test)
+tab <- table(clf.NB.predict, y.Test)
+print(tab)
+accuracy(tab)
+```
+
+La causa del bajo nivel de precisión es que las distribuciones de las variables predictoras se alejan demasiado de una gaussiana en algunos casos.
+
+A continuación, usaremos el modelo para calcular la probabilidad de cada jugador de pertenecer a cualquiera de las cuatro posiciones fundamentales:
+
+```{r}
+clf.NB.prob <- as.data.frame(predict(clf.NB, newdata = X, "raw"))
+fifa$NB.prob.Defender <- clf.NB.prob$Defender
+fifa$NB.prob.Midfielder <- clf.NB.prob$Midfielder
+fifa$NB.prob.Forward <- clf.NB.prob$Forward
+fifa$NB.prob.GK <- clf.NB.prob$GK
+```
+
+Podemos representar los jugadores en el espacio de probabilidades:
+
+```{r}
+ggplot(fifa, aes(x = NB.prob.Defender, y = NB.prob.Forward, color = player_positions.class)) +
+  geom_point()
+```
+
+Si nos fijamos, los defensas tienen probabilidad nula de ser delanteros y los delanteros tienen probabilidad nula de ser defensas. Sin embargo entre los mediocentros sí tenemos cierta dispersión.
+
+Representaremos a continuación a los jugadores en los espacios de pribabilidad (delentero, mediocentro) y (mediocentro, defensas):
+
+```{r}
+ggplot(fifa, aes(x = NB.prob.Midfielder, y = NB.prob.Forward, color = player_positions.class)) +
+  geom_point()
+```
+
+Observamos como en este caso hay delanteros que sí tienen cierta probabilidad de jugar de mediocentros, incluso más que de delanteros. La línea que se forma es la recta: $P(\mbox{delantero})+P(\mbox{mediocentro})=1$, ya que para los delanteros $P(\mbox{defensa})=0$. Al igual que antes, los mediocentros se distribuyen en el espacio entre las rectas de delanteros y defensas, en la región del subespacio de probabilidades (mediocentro, delantero) que cumple $P(\mbox{delantero})+P(\mbox{mediocentro})<1$ ya que tienen cierta posibilidad de jugar de defensas también. En esta gráfica los defensar se encuentran en la recta $P(\mbox{delantero})=0$.
+
+Es decir, cada grupo de jugadores se encuentra en la siguiente región del espacio de probabilidades:
+
+* Delanteros: recta $P(\mbox{delantero})+P(\mbox{mediocentro})=1$. Un único grado de libertad, si la probabilidad de ser delantero es $p$, la de ser mediocentro será $1-p$ y la de ser defensa será $0$. Con un único número obtenemos las tres probabilidades.
+
+* Defensas: recta $P(\mbox{defensa})+P(\mbox{mediocentro})=1$. Un único grado de libertad, si la prbabilidad de ser defensa es $p$, la de ser mediocentro será $1-p$ y la de ser delantero será $0$. Con un único número obtenemos las tres probabilidades.
+
+* Mediocentro: plano $P(\mbox{defensa})+P(\mbox{mediocentro})+P(\mbox{delantero})=1$. Dos grados de libertad, si la probabilidad de ser delantero es $p$ y la de ser defensa es $q$, la de ser mediocentro es $1-p-q$. Necesitamos dos números para localizarlo en el espacio de probabilidades.
+
+En realidad el espacio de probabildiades tiene 4 dimensiones, falta la dimensión $P(\mbox{portero})$, pero como los porteros tienen clara su posición, hemos decidido trabajar con el hiperplano $P(\mbox{portero})=0$, donde los porteros se encuentran en el origen $P(\mbox{delantero})=P(\mbox{mediocentro})=P(\mbox{defensa})=0$. Los porteros, por tanto, tienen $P(\mbox{portero})=1$. Esto se comprueba porque si representamos el subespacio de probabilidad (portero, delantero), por ejemplo, todos los jugadores de campo se encuentran en la recta $P(\mbox{portero})=0$ y todos los porteros se encontrarán en el punto $P(\mbox{portero})=1$ (que aunque sea la ecuación de una recta, resulta ser un punto debido a que es el punto de corte de esa recta con el hiperplano $P(\mbox{delantero})+P(\mbox{mediocentro})+P(\mbox{defensa})+P(\mbox{portero})=1$, que define la ligadura de la cual no podemos salir), este último apunte es aplicable al resto de ecuaciones.
+
+```{r}
+ggplot(fifa, aes(x = NB.prob.GK, y = NB.prob.Forward, color = player_positions.class)) + geom_point()
+```
+
+Para terminar con el modelo de Naive Bayes, podemos hacer una representación en 3 dimensiones (obviando la probabilidad de que sea portero) del espacio de probabilidades:
+
+```{r}
+NB.prob = c("NB.prob.Defender", "NB.prob.Midfielder", "NB.prob.Forward")
+colors <- c("brown1", "chartreuse", "magenta", "deepskyblue3")
+colors <- colors[as.factor(fifa$player_positions.class)]
+scatterplot3d(fifa[NB.prob], angle = 150, pch = 16, color= colors, box = FALSE)
+legend("top", legend = levels(as.factor(fifa$player_positions.class)),
+      col = c("brown1", "chartreuse", "magenta", "deepskyblue3"), pch = 16, bg = "transparent", 
+      inset = -0.2, xpd = TRUE, horiz = TRUE)
+```
+
+Se pueden ver claramente las rectas y planos en las que se mueven los jugadores de cada posición.
+
+
+
+
