@@ -723,3 +723,135 @@ my.head(df)
 
 
 ```
+
+# Predicción por posición
+
+## Seleccionamos los objetivos
+
+```{r}
+
+# Creamos dos funciones para analizar los métodos
+normalize <- function(x) { ((x - min(x)) / (max(x) - min(x))) }
+accuracy  <- function(x) { sum(diag(x)/(sum(rowSums(x)))) * 100 }
+
+# Escogemos el Objetivo
+y = factor(fifa$player_positions.class)
+
+# Escojemos una semilla y dividimos en Train y Test
+set.seed(123)
+test_ind <- sample(seq_len(nrow(fifa)), size = floor(0.25 * nrow(fifa)))
+
+# Separamos el objetivo en Train y Test
+y.Train <- y[-test_ind]
+y.Test  <- y[test_ind]
+
+```
+
+## Seleccionamos las variables de entrada
+
+```{r}
+
+# Se escoge entre 3 opciones para ver en cual tenemos mejor resultado
+
+# Variables de rendimiento (conPCA_3 = FALSE y conPCA_4 = FALSE)
+# 3 variables PCA          (conPCA_3 = TRUE  y conPCA_4 = FALSE)
+# 4 variables PCA          (conPCA_3 = FALSE y conPCA_4 = TRUE )
+
+conPCA_3 = FALSE
+conPCA_4 = FALSE
+
+if (conPCA_3 == TRUE){
+  X <- data.frame(fifa$PC1, fifa$PC2, fifa$PC3)
+}else if (conPCA_4 == TRUE){
+  X <- data.frame(fifa$PC1, fifa$PC2, fifa$PC3, PC4=pca.45_104$ind$coord[,4])
+}else{
+  X <- as.data.frame(lapply(fifa[45:104], normalize))
+}
+
+#Normalizamos las variables
+X <- as.data.frame(lapply(X, normalize))
+
+## Separamos las variables entre Train y Test
+X.Train <- X[-test_ind, ]
+X.Test  <- X[test_ind, ]
+
+```
+
+
+## Agrupamos por distintos métodos
+
+### KNN
+
+```{r}
+# install.packages("class")
+library(class)
+
+# Miramos el mejor valor de K
+i=1                          # declaration to initiate for loop
+k.optm=1                     # declaration to initiate for loop
+for (i in 1:20){ 
+    knn.mod <-  knn(train = X.Train, test = X.Test, cl= y.Train, k = i)
+    k.optm[i] <- 100 * sum(y.Test == knn.mod)/NROW(y.Test)
+}
+
+plot(k.optm, type="b", xlab="K- Value",ylab="Accuracy level")  # to plot % accuracy wrt to k-value
+
+y_pred <- knn(train = X.Train, test = X.Test, cl= y.Train, k = 11)
+
+(tab <- table(y_pred,y.Test))
+accuracy(tab)
+
+```
+
+### KMEANS
+
+```{r}
+library(cluster)
+
+km       <- kmeans(X, 4)
+km.order <- as.numeric(names(sort(km$centers[,1])))
+names(km.order) <- c("GK","Defender","Forward","Midfielder")
+km.order <- sort(km.order)
+clus.order <- factor(names(km.order[km$cluster]))
+
+(tab <- table(clus.order,y))
+accuracy(tab)
+
+```
+
+### PAM (Particionamiento Alrededor De Medoides)
+
+Agrupamiento de los datos en k grupos "alrededor de medoides", una versión más robusta de K-means.
+
+```{r message= FALSE, warning=FALSE}
+
+ec.res <-  X %>%
+  eclust("pam", k = 4, graph = TRUE)
+
+(tab <- table(ec.res$clustering,y))
+accuracy(tab)
+
+```
+
+
+### Agrupación jerárquica (hclust)
+
+```{r message= FALSE, warning=FALSE}
+
+# Dissimilarity matrix
+d <- dist(X, method = "euclidean")
+
+# Hierarchical clustering using Complete Linkage
+hc <- hclust(d, method = "complete" )
+hc.cut <- cutree(hc, k = 4)
+
+# Plot the obtained dendrogram
+plot(hc, cex = 0.6, hang = -1)
+rect.hclust(hc, k = 4, border = 2:10)
+
+(tab <- table(hc.cut,y))
+accuracy(tab)
+
+
+```
+
