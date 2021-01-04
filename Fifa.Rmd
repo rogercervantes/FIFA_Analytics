@@ -10,8 +10,8 @@ output:
     theme: cosmo
     toc: yes
     toc_depth: 2
-    #includes:
-      #in_header: UOC-header.html
+    includes:
+      in_header: UOC-header.html
 ---
 
 ```{r setup, include=FALSE}
@@ -205,15 +205,36 @@ fifa$player_positions.class <- tmp$player_positions.class
 
 ```{r valoresPerdidos}
 
+# Dividimos el dataset entre porteros y jugadores de campo
+fifa.gk  <- fifa %>% filter(player_positions.class == "GK")
+fifa.campo  <- fifa %>% filter(player_positions.class != "GK")
+
+# En cada caso, quitamos las 6 caracteristicas que solo estan informados en el otro grupo
+fifa.gk <- fifa.gk[, !names(fifa.gk) %in% c("pace","shooting","passing","dribbling","defending","physic")] 
+fifa.campo <- fifa.campo[, !names(fifa.campo) %in% c("gk_diving","gk_handling","gk_kicking","gk_reflexes","gk_speed","gk_positioning")] 
+
+# Quitamos las valoraciones en la posicion para el grupo de porteros
+fifa.gk <- fifa.gk[, !names(fifa.gk) %in% c("ls","st","rs","lw","lf","cf","rf","rw","lam","cam","ram","lm","lcm","cm","rcm","rm","lwb","ldm","cdm","rdm","rwb","lb","lcb","cb","rcb","rb")]
+
 # Miramos que variables tienen valores perdidos
-sort(colSums(is.na(fifa)), decreasing = TRUE)
-sort(colSums(fifa==""), decreasing = TRUE)
-sort(colSums(fifa==0), decreasing = TRUE)
+list <- colSums(is.na(fifa.gk)); sort(list[list != 0], decreasing = TRUE)
+list <- colSums(fifa.gk==""); sort(list[list != 0], decreasing = TRUE)
+list <- colSums(fifa.gk==0); sort(list[list != 0], decreasing = TRUE)
+
+list <- colSums(is.na(fifa.campo)); sort(list[list != 0], decreasing = TRUE)
+list <- colSums(fifa.campo==""); sort(list[list != 0], decreasing = TRUE)
+list <- colSums(fifa.campo==0); sort(list[list != 0], decreasing = TRUE)
+
 
 # Eliminamos los datos que tengan vacíos alguno de los dos campos objetivo
 fifa <- fifa %>% filter(value_eur != 0)
-fifa <- fifa %>% filter(!is.na(value_eur))
 ```
+
+Vemos que tanto para porteros como jugadores de campo, las únicas variables que tienen null son nation_jersey_number y release_clause_eur que no se usan en el modelo.
+Las variables que están en blanco son: player_tags, loaned_from, nation_position, player_traits, joined que tampoco se usan.
+Y solo hay dos registros con value_eur = 0.
+Estos registros si que pueden interferir en el estudio y por eso los eliminamos.
+
 
 ## Valores Extremos
 
@@ -233,9 +254,9 @@ grid.arrange(gp5, gp6, gp7, ncol = 2)
 ```
 
 
-## Valores estadisticos
+## Valores estadísticos
 
-Las varibles que albergan las métricas que definen el rendimiento del jugador en el juego están acompañadas por un valor fijo y una cantidad variable que se suma a éste, para representar la evolución del jugador durante algunos modos de juego. Para este análisis nos quedaremos con la parte fija.
+Las variables que albergan las métricas que definen el rendimiento del jugador en el juego están acompañadas por un valor fijo y una cantidad variable que se suma a éste, para representar la evolución del jugador durante algunos modos de juego. Para este análisis nos quedaremos con la parte fija.
 
 ```{r estadisticas}
 
